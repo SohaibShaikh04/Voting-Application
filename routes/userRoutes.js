@@ -1,18 +1,34 @@
 const express = require('express');
 const router = express.Router();
 const User =require('./../models/user')
-const {jwtMiddleware,generateToken} = require('./../jwt');
+const {jwtAuthMiddleware,generateToken} = require('../jwt');
 
 
 //User(voter) ka signup
 router.post('/signup', async (req, res) => {
     try {
       const data = req.body;
+       // Check if there is already an admin user
+       const adminUser = await User.findOne({ role: 'admin' });
+       if (data.role === 'admin' && adminUser) {
+           return res.status(400).json({ error: 'Admin user already exists' });
+       }
+       // Validate Aadhar Card Number must have exactly 12 digit
+       if (!/^\d{12}$/.test(data.aadharCardNumber)) {
+           return res.status(400).json({ error: 'Aadhar Card Number must be exactly 12 digits' });
+       }
+
+       // Check if a user with the same Aadhar Card Number already exists
+       const existingUser = await User.findOne({ aadharCardNumber: data.aadharCardNumber });
+       if (existingUser) {
+           return res.status(400).json({ error: 'User with the same Aadhar Card Number already exists' });
+       }
+
       //Create a new User document using mongoose model
       const newUser = new User(data);
       //Save the new user to the databaase
       const response = await newUser.save();
-      console.log('User saved');
+      console.log('User as voter is saved');
 
       //payload
       const payload = {
@@ -61,7 +77,7 @@ router.post('/login' ,async(req,res) => {
 
 
   // Profile jaha user create hone ke baad stored rhega
-  router.get('/profile',jwtMiddleware, async (req, res) => {
+  router.get('/profile',jwtAuthMiddleware, async (req, res) => {
    
     try {
      
@@ -78,7 +94,7 @@ router.post('/login' ,async(req,res) => {
 
 
   //User can update their password which they created while signing up
-  router.put('/profile/password',jwtMiddleware,async (req,res)=>{
+  router.put('/profile/password',jwtAuthMiddleware,async (req,res)=>{
   try{
     const  userId=req.user.id; //Extract the id from the token
     const {currentPassword,newPassword} = req.body //extract the current and new password from the request body
